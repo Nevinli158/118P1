@@ -13,5 +13,5 @@ void reapZombies();
 void sigchld_handler(int s);
 void *get_in_addr(struct sockaddr *sa);
 int acceptConnection(int listen_fd);
-int handleConnection(int conn_fd);
+void handleConnection(int conn_fd);
 #endif
