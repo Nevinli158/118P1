@@ -14,26 +14,26 @@
 /*	initServer creates/binds a socket, and returns the fd associated with the socket.
 	port = string containing the port number desired.
 */
-int initServer(const char *port){
+ProxyServer::ProxyServer(const char *port){
 	//Load address info struct
 	struct addrinfo *servinfo = initAddrInfo(port);
 	//Make a socket
-	int sockfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
-	if(sockfd == -1){
+	listen_fd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
+	if(listen_fd == -1){
 		std::cout<<"socket init error\n";
 	}
 	
 	struct addrinfo *p;
     // loop through all the results and bind to the first we can
     for(p = servinfo; p != NULL; p = p->ai_next) {
-        if ((sockfd = socket(p->ai_family, p->ai_socktype,
+        if ((listen_fd = socket(p->ai_family, p->ai_socktype,
                 p->ai_protocol)) == -1) {
             perror("listener: socket");
             continue;
         }
 
-        if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-            close(sockfd);
+        if (bind(listen_fd, p->ai_addr, p->ai_addrlen) == -1) {
+            close(listen_fd);
             perror("listener: bind");
             continue;
         }
@@ -43,17 +43,43 @@ int initServer(const char *port){
 
     if (p == NULL) {
         fprintf(stderr, "listener: failed to bind socket\n");
-        return 2;
+        exit(2);
     }	
 	
 	freeaddrinfo(servinfo);	
-	return sockfd;
+}
+
+void ProxyServer::startServer(){
+	//Start to listen
+	if (listen(listen_fd, BACKLOG) == -1) {
+        perror("listen");
+        exit(1);
+    }
+	//Get rid of old zombie threads.
+	reapZombies();
+	printf("server: waiting for connections...\n");
+	
+	int conn_fd;
+    while(1) {  // main accept() loop
+        conn_fd = acceptConnection(listen_fd);
+        if (conn_fd == -1) {
+            perror("accept");
+            continue;
+        }
+		//Fork a child to handle this specific connection
+        if (fork() == 0) { // this is the child process
+            close(listen_fd); // child doesn't need the listener
+			handleConnection(conn_fd);
+        }
+		
+        close(conn_fd);  // parent doesn't need this
+    }
 }
 
 /*	initAddrInfo initializes the addrinfo struct based on the port number.
 	port = string containing the port number desired.
 */
-struct addrinfo* initAddrInfo(const char *port){
+struct addrinfo* ProxyServer::initAddrInfo(const char *port){
 	int status;
 	struct addrinfo hints;
 	struct addrinfo *servinfo;  // will point to the results
@@ -69,7 +95,7 @@ struct addrinfo* initAddrInfo(const char *port){
 	return servinfo;	
 }
 
-int acceptConnection(int listen_fd){
+int ProxyServer::acceptConnection(int listen_fd){
 	struct sockaddr_storage their_addr; // connector's address information
 	char s[INET6_ADDRSTRLEN];
 	socklen_t sin_size = sizeof their_addr;
@@ -84,14 +110,14 @@ int acceptConnection(int listen_fd){
 	return new_fd;
 }
 
-void handleConnection(int conn_fd){
+void ProxyServer::handleConnection(int conn_fd){
 	if (send(conn_fd, "Hello, world!", 13, 0) == -1)
                 perror("send");
 	close(conn_fd);
 	exit(0);
 }
 
-void reapZombies(){
+void ProxyServer::reapZombies(){
 	struct sigaction sa;
     sa.sa_handler = sigchld_handler; // reap all dead processes
     sigemptyset(&sa.sa_mask);
@@ -108,7 +134,7 @@ void sigchld_handler(int s)
 }
 
 // get sockaddr, IPv4 or IPv6:
-void *get_in_addr(struct sockaddr *sa)
+void* ProxyServer::get_in_addr(struct sockaddr *sa)
 {
     if (sa->sa_family == AF_INET) {
         return &(((struct sockaddr_in*)sa)->sin_addr);
