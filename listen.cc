@@ -85,10 +85,30 @@ int acceptConnection(int listen_fd){
 }
 
 void handleConnection(int conn_fd){
-	if (send(conn_fd, "Hello, world!", 13, 0) == -1)
+	/*if (send(conn_fd, "Hello, world!", 13, 0) == -1)
                 perror("send");
 	close(conn_fd);
 	exit(0);
+	*/
+	// recv from socket into buffer
+	size_t buf_size = 1024;
+	char *buf = (char *) malloc(buf_size);
+	
+	int recvbytes = recv(conn_fd, buf, buf_size, 0);
+	if (recvbytes == -1) {
+		perror("recv");
+	}
+	else if (recvbytes == 0){
+		printf("connection closed\n");
+	}
+	else {
+		HTTPRequest http_request = new HTTPRequest();
+		http_request.ParseRequest(buf, recvbytes);
+		
+		char *remote_request = (char *) malloc(http_request.GetTotalLength());
+		int sendbytes = http_request.FormatRequest(remote_request) - remote_request;
+		
+	}
 }
 
 void reapZombies(){
