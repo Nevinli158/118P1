@@ -133,9 +133,17 @@ void ProxyServer::handleConnection(int conn_fd){
 		HTTPRequest http_request = new HTTPRequest();
 		http_request.ParseRequest(buf, recvbytes);
 		
+		// Format request to remote server
 		char *remote_request = (char *) malloc(http_request.GetTotalLength());
 		int sendbytes = http_request.FormatRequest(remote_request) - remote_request;
 		
+		// Connect to remote server
+		struct addrinfo *servinfo = initAddrInfo(http_request.GetPort());
+		int serverfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
+		connect(serverfd, servinfo->ai_addr, servinfo->ai_addrlen);
+		
+		if (send(serverfd, remote_request, sendbytes, 0) == -1)
+                perror("send");
 	}
 }
 
