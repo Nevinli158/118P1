@@ -9,7 +9,7 @@
 #include <sys/wait.h>
 #include <cstring>
 #include <arpa/inet.h>
-#include "listen.h"
+#include "ProxyServer.h"
 
 /*	initServer creates/binds a socket, and returns the fd associated with the socket.
 	port = string containing the port number desired.
