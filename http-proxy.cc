@@ -11,7 +11,7 @@
 
 using namespace std;
 
-#define MYPORT "14805"  // the port users will be connecting to
+#define MYPORT "14820"  // the port users will be connecting to
 #define BACKLOG 10     // how many pending connections queue will hold
 
 int main (int argc, char *argv[])
