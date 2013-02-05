@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <cstring>
 #include <arpa/inet.h>
+#include <list>
 #include "http-request.h"
 #include "ProxyServer.h"
 
@@ -60,6 +61,7 @@ void ProxyServer::startServer(){
 	reapZombies();
 	printf("server: waiting for connections...\n");
 	
+
 	int conn_fd;
     while(1) {  // main accept() loop
         conn_fd = acceptConnection(listen_fd);
@@ -67,14 +69,41 @@ void ProxyServer::startServer(){
             perror("accept");
             continue;
         }
-		//Fork a child to handle this specific connection
-        if (fork() == 0) { // this is the child process
-            close(listen_fd); // child doesn't need the listener
-			handleConnection(conn_fd);
-        }
+		
+		reapConnectionList(); // Update the number of current active connections
+		
+		//Refuse to serve if the server is already serving too many clients.
+		if(connectionList.size() < MAX_NUM_CLIENTS){	
+			//Fork a child to handle this specific connection
+			pid_t pid = fork();
+			if (pid == 0) { // this is the child process
+				close(listen_fd); // child doesn't need the listener
+				handleConnection(conn_fd);
+			} else { //parent process
+				connectionList.push_back(pid);
+			}
+		}
 		
         close(conn_fd);  // parent doesn't need this
     }
+}
+
+void ProxyServer::reapConnectionList(){
+	int status = 0;
+	std::list<int>::iterator it = connectionList.begin();
+	//For each connection
+	while(it != connectionList.end()){
+		pid_t hasExited = waitpid(*it,&(status),WNOHANG);
+		if(hasExited == -1){ //Error
+			perror("waitpid error");
+			connectionList.erase(it);
+			continue;
+		} else if(hasExited != 0){//If the connection has ended, remove it from the list.
+			it = connectionList.erase(it);
+		} else {
+			it++;
+		}
+	}	
 }
 
 /*	initAddrInfo initializes the addrinfo struct based on the port number.
