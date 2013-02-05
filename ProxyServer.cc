@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <cstring>
 #include <arpa/inet.h>
+#include "http-request.h"
 #include "ProxyServer.h"
 
 /*	initServer creates/binds a socket, and returns the fd associated with the socket.
@@ -130,20 +131,22 @@ void ProxyServer::handleConnection(int conn_fd){
 		printf("connection closed\n");
 	}
 	else {
-		HTTPRequest http_request = new HTTPRequest();
-		http_request.ParseRequest(buf, recvbytes);
+		HttpRequest *http_request = new HttpRequest();
+		http_request->ParseRequest(buf, recvbytes);
 		
 		// Format request to remote server
-		char *remote_request = (char *) malloc(http_request.GetTotalLength());
-		int sendbytes = http_request.FormatRequest(remote_request) - remote_request;
+		char *remote_request = (char *) malloc(http_request->GetTotalLength());
+		int sendbytes = http_request->FormatRequest(remote_request) - remote_request;
 		
 		// Connect to remote server
-		struct addrinfo *servinfo = initAddrInfo(http_request.GetPort());
+		char * port = new char[6];
+		sprintf(port, "%d", http_request->GetPort());
+		struct addrinfo *servinfo = initAddrInfo(port);
 		int serverfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
 		if (bind(serverfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
             close(serverfd);
             perror("handle: bind");
-            continue;
+			exit(-1);
         }
 		connect(serverfd, servinfo->ai_addr, servinfo->ai_addrlen);
 		
