@@ -10,7 +10,10 @@
 #include <cstring>
 #include <arpa/inet.h>
 #include <list>
+#include <pthread.h>
+#include <errno.h>
 #include "http-request.h"
+
 #include "ProxyServer.h"
 
 /*	initServer creates/binds a socket, and returns the fd associated with the socket.
@@ -61,11 +64,10 @@ void ProxyServer::startServer(){
 	reapZombies();
 	printf("server: waiting for connections...\n");
 	
-
-	int conn_fd;
     while(1) {  // main accept() loop
-        conn_fd = acceptConnection(listen_fd);
-        if (conn_fd == -1) {
+		int* conn_fd = new int[1];
+        *conn_fd = acceptConnection(listen_fd);
+        if (*conn_fd == -1) {
             perror("accept");
             continue;
         }
@@ -75,33 +77,31 @@ void ProxyServer::startServer(){
 		//Refuse to serve if the server is already serving too many clients.
 		if(connectionList.size() < MAX_NUM_CLIENTS){	
 			//Fork a child to handle this specific connection
-			pid_t pid = fork();
-			if (pid == 0) { // this is the child process
-				close(listen_fd); // child doesn't need the listener
-				handleConnection(conn_fd);
-			} else { //parent process
-				connectionList.push_back(pid);
-			}
+			pthread_t newThread;
+			pthread_create(&newThread, NULL, ProxyServer::handleConnection, (void*)conn_fd);
+			connectionList.push_back(newThread);
+		} else {
+			printf("server:but connection refused \n");
+			close(*conn_fd);
 		}
-		
-        close(conn_fd);  // parent doesn't need this
     }
 }
 
 void ProxyServer::reapConnectionList(){
 	int status = 0;
-	std::list<int>::iterator it = connectionList.begin();
+	std::list<pthread_t>::iterator it = connectionList.begin();
 	//For each connection
 	while(it != connectionList.end()){
-		pid_t hasExited = waitpid(*it,&(status),WNOHANG);
-		if(hasExited == -1){ //Error
-			perror("waitpid error");
+		status = pthread_tryjoin_np(*it, NULL);
+		//If the connection has ended, remove it from the list.
+		if(status == 0){
+			it = connectionList.erase(it);
+		} else if(status == EBUSY){ //If the connection is still going, move on.
+			it++;
+		} else {//Error
+			perror("reap error");
 			connectionList.erase(it);
 			continue;
-		} else if(hasExited != 0){//If the connection has ended, remove it from the list.
-			it = connectionList.erase(it);
-		} else {
-			it++;
 		}
 	}	
 }
@@ -141,7 +141,7 @@ int ProxyServer::acceptConnection(int listen_fd){
 }
 
 
-void ProxyServer::handleConnection(int conn_fd){
+void* ProxyServer::handleConnection(void* args){
 	/*
 	if (send(conn_fd, "Hello, world!", 13, 0) == -1)
                 perror("send");
@@ -149,6 +149,7 @@ void ProxyServer::handleConnection(int conn_fd){
 	exit(0);
 	*/
 	// recv from socket into buffer
+	int conn_fd = *((int*)args);
 	size_t buf_size = 1024;
 	char *buf = (char *) malloc(buf_size);
 	
@@ -183,6 +184,9 @@ void ProxyServer::handleConnection(int conn_fd){
 		if (send(serverfd, remote_request, sendbytes, 0) == -1)
                 perror("send");
 	}
+	
+	close(conn_fd);  //close the connection once we're done.
+	return NULL;
 }
 
 void ProxyServer::reapZombies(){
