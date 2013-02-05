@@ -140,7 +140,13 @@ void ProxyServer::handleConnection(int conn_fd){
 		// Connect to remote server
 		struct addrinfo *servinfo = initAddrInfo(http_request.GetPort());
 		int serverfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
+		if (bind(serverfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
+            close(serverfd);
+            perror("handle: bind");
+            continue;
+        }
 		connect(serverfd, servinfo->ai_addr, servinfo->ai_addrlen);
+		
 		
 		if (send(serverfd, remote_request, sendbytes, 0) == -1)
                 perror("send");
