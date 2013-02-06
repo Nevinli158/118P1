@@ -151,9 +151,15 @@ void* ProxyServer::handleConnection(void* args){
 	// recv from socket into buffer
 	int conn_fd = *((int*)args);
 	size_t buf_size = 1024;
-	char *buf = (char *) malloc(buf_size);
 	
-	int recvbytes = recv(conn_fd, buf, buf_size, 0);
+	size_t requestbuf_size = 0;
+	size_t max_requestbuf_size = buf_size;
+	// Full request buffer
+	char *requestbuf = (char *) malloc(buf_size);
+	// Temp recv buffer
+	char *recvbuf = (char *) malloc(buf_size);
+		
+	int recvbytes = recv(conn_fd, recvbuf, buf_size, 0);
 	if (recvbytes == -1) {
 		perror("recv");
 	}
@@ -162,14 +168,22 @@ void* ProxyServer::handleConnection(void* args){
 	}
 	else {
 		HttpRequest *http_request = new HttpRequest();
-		//try {
-			http_request->ParseRequest(buf, recvbytes);
-		/*} catch(ParseException e) {
-			close(listen_fd);
-            perror("handle: parse");
-			exit(-1);
+		while (recvbytes != 0 || recvbytes != -1) {
+			if((requestbuf_size + recvbytes) >= max_requestbuf_size) {
+				// Grow requestbuf by buf_size
+				requestbuf = (char *) realloc(requestbuf, max_requestbuf_size + buf_size);
+				max_requestbuf_size += buf_size;
+			}
+			memcpy(requestbuf + requestbuf_size, recvbuf, recvbytes);
+			requestbuf_size += recvbytes;
+			try {
+				http_request->ParseRequest(requestbuf, requestbuf_size);
+			} catch(ParseException e) {
+				recvbytes = recv(conn_fd, requestbuf, buf_size, 0);
+				continue;
+			}
 		}
-		
+		/*
 		// Format request to remote server
 		char *remote_request = (char *) malloc(http_request->GetTotalLength());
 		int sendbytes = http_request->FormatRequest(remote_request) - remote_request;
