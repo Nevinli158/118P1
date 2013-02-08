@@ -109,7 +109,7 @@ void ProxyServer::reapConnectionList(){
 /*	initAddrInfo initializes the addrinfo struct based on the port number.
 	port = string containing the port number desired.
 */
-struct addrinfo* ProxyServer::initAddrInfo(const char *port){
+struct addrinfo* ProxyServer::initAddrInfo(const char *port, const char *host){
 	int status;
 	struct addrinfo hints;
 	struct addrinfo *servinfo;  // will point to the results
@@ -118,7 +118,7 @@ struct addrinfo* ProxyServer::initAddrInfo(const char *port){
 	hints.ai_family = AF_UNSPEC;     // don't care IPv4 or IPv6
 	hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
 	hints.ai_flags = AI_PASSIVE;     // fill in my IP for me
-	if ((status = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {
+	if ((status = getaddrinfo(host, port, &hints, &servinfo)) != 0) {
 		fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
 		exit(1);
 	}
@@ -151,9 +151,15 @@ void* ProxyServer::handleConnection(void* args){
 	// recv from socket into buffer
 	int conn_fd = *((int*)args);
 	size_t buf_size = 1024;
-	char *buf = (char *) malloc(buf_size);
 	
-	int recvbytes = recv(conn_fd, buf, buf_size, 0);
+	size_t requestbuf_size = 0;
+	size_t max_requestbuf_size = buf_size;
+	// Full request buffer
+	char *requestbuf = (char *) malloc(buf_size);
+	// Temp recv buffer
+	char *recvbuf = (char *) malloc(buf_size);
+		
+	int recvbytes = recv(conn_fd, recvbuf, buf_size, 0);
 	if (recvbytes == -1) {
 		perror("recv");
 	}
@@ -162,16 +168,33 @@ void* ProxyServer::handleConnection(void* args){
 	}
 	else {
 		HttpRequest *http_request = new HttpRequest();
-		http_request->ParseRequest(buf, recvbytes);
-		
+		while (recvbytes != 0 || recvbytes != -1) {
+			if((requestbuf_size + recvbytes) >= max_requestbuf_size) {
+				// Grow requestbuf by buf_size
+				requestbuf = (char *) realloc(requestbuf, max_requestbuf_size + buf_size);
+				max_requestbuf_size += buf_size;
+			}
+			memcpy(requestbuf + requestbuf_size, recvbuf, recvbytes);
+			requestbuf_size += recvbytes;
+			try {
+				http_request->ParseRequest(requestbuf, requestbuf_size);
+			} catch(ParseException e) {
+				recvbytes = recv(conn_fd, requestbuf, buf_size, 0);
+				continue;
+			}
+		}
+		/*
 		// Format request to remote server
 		char *remote_request = (char *) malloc(http_request->GetTotalLength());
 		int sendbytes = http_request->FormatRequest(remote_request) - remote_request;
+		*/
+		std::cout << http_request->GetHost() << ", " << http_request->GetPort() << ", " << http_request->GetPath() << std::endl;
 		
+		/*
 		// Connect to remote server
 		char * port = new char[6];
 		sprintf(port, "%d", http_request->GetPort());
-		struct addrinfo *servinfo = initAddrInfo(port);
+		struct addrinfo *servinfo = initAddrInfo(port, http_request->GetHost().c_str());
 		int serverfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
 		if (bind(serverfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
             close(serverfd);
@@ -180,9 +203,9 @@ void* ProxyServer::handleConnection(void* args){
         }
 		connect(serverfd, servinfo->ai_addr, servinfo->ai_addrlen);
 		
-		
 		if (send(serverfd, remote_request, sendbytes, 0) == -1)
                 perror("send");
+		*/
 	}
 	
 	close(conn_fd);  //close the connection once we're done.
