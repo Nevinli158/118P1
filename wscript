@@ -28,6 +28,8 @@ def build (env):
             # Put additional files here
             # ...
             #
+			"WebCache.cc",
+			"ReadWriteLock.cc",
 			"ProxyServer.cc",
             "http-proxy.cc", # main() function is here
             "http-headers.cc",
