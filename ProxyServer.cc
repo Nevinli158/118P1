@@ -168,7 +168,7 @@ void* ProxyServer::handleConnection(void* args){
 	}
 	else {
 		HttpRequest *http_request = new HttpRequest();
-		while (recvbytes != 0 || recvbytes != -1) {
+		while (recvbytes != 0 && recvbytes != -1) {
 			if((requestbuf_size + recvbytes) >= max_requestbuf_size) {
 				// Grow requestbuf by buf_size
 				requestbuf = (char *) realloc(requestbuf, max_requestbuf_size + buf_size);
@@ -178,34 +178,49 @@ void* ProxyServer::handleConnection(void* args){
 			requestbuf_size += recvbytes;
 			try {
 				http_request->ParseRequest(requestbuf, requestbuf_size);
+				break;
 			} catch(ParseException e) {
-				recvbytes = recv(conn_fd, requestbuf, buf_size, 0);
+				std::cout << e.what() << std::endl;
+				printf("%s\n", requestbuf);
+				recvbytes = recv(conn_fd, recvbuf, buf_size, 0);
 				continue;
 			}
+			
 		}
-		/*
+		
+		
+		
+		if(http_request->GetHost() == "") {
+			http_request->SetHost(http_request->FindHeader("Host"));
+		}
+		if(http_request->GetPort() == 0) {
+			http_request->SetPort(80);
+		}
+		
 		// Format request to remote server
 		char *remote_request = (char *) malloc(http_request->GetTotalLength());
 		int sendbytes = http_request->FormatRequest(remote_request) - remote_request;
-		*/
-		std::cout << http_request->GetHost() << ", " << http_request->GetPort() << ", " << http_request->GetPath() << std::endl;
 		
-		/*
 		// Connect to remote server
-		char * port = new char[6];
+		char port[6];
 		sprintf(port, "%d", http_request->GetPort());
 		struct addrinfo *servinfo = initAddrInfo(port, http_request->GetHost().c_str());
 		int serverfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
-		if (bind(serverfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
-            close(serverfd);
-            perror("handle: bind");
-			exit(-1);
-        }
 		connect(serverfd, servinfo->ai_addr, servinfo->ai_addrlen);
+		// Send request to remote server
+		if (send(serverfd, remote_request, sendbytes, 0) == -1) {
+            close(serverfd);
+            perror("handle: send");
+			exit(-1);
+		}
+		else {
+			char recvbuf[buf_size];
+			recv(conn_fd, recvbuf, buf_size, 0);
+			
+			std::cout << recvbuf << std::endl;
+		}
 		
-		if (send(serverfd, remote_request, sendbytes, 0) == -1)
-                perror("send");
-		*/
+		std::cout << http_request->FindHeader("Host") << ", " << http_request->GetPort() << ", " << http_request->GetPath() << std::endl;
 	}
 	
 	close(conn_fd);  //close the connection once we're done.
