@@ -19,7 +19,7 @@ class ProxyServer {
 		void reapZombies();
 		void* get_in_addr(struct sockaddr *sa);
 		int acceptConnection(int listen_fd);
-		static void* handleConnection(void* args);
+		static void* handleUserConnection(void* args);
 		void reapConnectionList();
 		int listen_fd;
 

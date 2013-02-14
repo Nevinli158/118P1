@@ -13,7 +13,7 @@
 #include <pthread.h>
 #include <errno.h>
 #include "http-request.h"
-
+#include "UserConnectionPackage.h"
 #include "ProxyServer.h"
 
 /*	initServer creates/binds a socket, and returns the fd associated with the socket.
@@ -65,9 +65,9 @@ void ProxyServer::startServer(){
 	printf("server: waiting for connections...\n");
 	
     while(1) {  // main accept() loop
-		int* conn_fd = new int[1];
-        *conn_fd = acceptConnection(listen_fd);
-        if (*conn_fd == -1) {
+		int conn_fd;
+        conn_fd = acceptConnection(listen_fd);
+        if (conn_fd == -1) {
             perror("accept");
             continue;
         }
@@ -78,11 +78,11 @@ void ProxyServer::startServer(){
 		if(connectionList.size() < MAX_NUM_CLIENTS){	
 			//Fork a child to handle this specific connection
 			pthread_t newThread;
-			pthread_create(&newThread, NULL, ProxyServer::handleConnection, (void*)conn_fd);
+			pthread_create(&newThread, NULL, ProxyServer::handleUserConnection, new UserConnectionPackage(conn_fd));
 			connectionList.push_back(newThread);
 		} else {
 			printf("server:but connection refused \n");
-			close(*conn_fd);
+			close(conn_fd);
 		}
     }
 }
@@ -141,7 +141,7 @@ int ProxyServer::acceptConnection(int listen_fd){
 }
 
 
-void* ProxyServer::handleConnection(void* args){
+void* ProxyServer::handleUserConnection(void* args){
 	/*
 	if (send(conn_fd, "Hello, world!", 13, 0) == -1)
                 perror("send");
@@ -149,7 +149,8 @@ void* ProxyServer::handleConnection(void* args){
 	exit(0);
 	*/
 	// recv from socket into buffer
-	int conn_fd = *((int*)args);
+	UserConnectionPackage* pack = (UserConnectionPackage*)(args);
+	int conn_fd = pack->conn_fd;
 	size_t buf_size = 1024;
 	
 	size_t requestbuf_size = 0;
