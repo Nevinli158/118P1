@@ -22,6 +22,8 @@
 	port = string containing the port number desired.
 */
 ProxyServer::ProxyServer(const char *port){
+	connectionList = new std::list<pthread_t>();
+
 	//Load address info struct
 	struct addrinfo *servinfo = initAddrInfo(port);
 	//Make a socket
@@ -77,11 +79,11 @@ void ProxyServer::startServer(){
 		reapThreadList(connectionList); // Update the number of current active connections
 		
 		//Refuse to serve if the server is already serving too many clients.
-		if(connectionList.size() < MAX_NUM_CLIENTS){	
+		if(connectionList->size() < MAX_NUM_CLIENTS){	
 			//Fork a child to handle this specific connection
 			pthread_t newThread;
 			pthread_create(&newThread, NULL, ProxyServer::handleUserConnection, new UserConnectionPackage(conn_fd, new WebCache()));
-			connectionList.push_back(newThread);
+			connectionList->push_back(newThread);
 		} else {
 			printf("server:but connection refused \n");
 			close(conn_fd);
@@ -89,20 +91,20 @@ void ProxyServer::startServer(){
     }
 }
 
-void ProxyServer::reapThreadList(std::list<pthread_t> list){
+void ProxyServer::reapThreadList(std::list<pthread_t> *list){
 	int status = 0;
-	std::list<pthread_t>::iterator it = list.begin();
+	std::list<pthread_t>::iterator it = list->begin();
 	//For each connection
-	while(it != list.end()){
+	while(it != list->end()){
 		status = pthread_tryjoin_np(*it, NULL);
 		//If the connection has ended, remove it from the list.
 		if(status == 0){
-			it = list.erase(it);
+			it = list->erase(it);
 		} else if(status == EBUSY){ //If the connection is still going, move on.
 			it++;
 		} else {//Error
 			perror("reap error");
-			connectionList.erase(it);
+			list->erase(it);
 			continue;
 		}
 	}	
@@ -144,50 +146,31 @@ int ProxyServer::acceptConnection(int listen_fd){
 
 
 void* ProxyServer::handleUserConnection(void* args){
-	/*
-	if (send(conn_fd, "Hello, world!", 13, 0) == -1)
-                perror("send");
-	close(conn_fd);
-	exit(0);
-	*/
-	// recv from socket into buffer
+
+	std::list<pthread_t> *requestList = new std::list<pthread_t>();
 	UserConnectionPackage* pack = (UserConnectionPackage*)(args);
 	int conn_fd = pack->conn_fd;
 	WebCache* cache = pack->cache;
-
-		
-	HttpRequest *http_request = getHttpRequest(conn_fd);
-	std::cout << http_request->FindHeader("Host") << ", " << http_request->GetPort() << ", " << http_request->GetPath() << std::endl;
-
-		/*
-			std::list<pthread_t> requestList = new std::list<pthread>();
-			while(1) {  // main accept() loop
-				int conn_fd;
-				conn_fd = acceptConnection(listen_fd);
-				if (conn_fd == -1) {
-					perror("accept");
-					continue;
-				}
-				
-				reapThreadList(requestList); // Update the number of current active connections
-				
-				//Refuse to serve if the server is already serving too many clients.
-				if(connectionList.size() < MAX_NUM_CLIENTS){	
-					//Fork a child to handle this specific connection
-					pthread_t newThread;
-					pthread_create(&newThread, NULL, ProxyServer::handleUserRequest, new UserRequestPackage(httpRequest,conn_fd));
-					requestList.push_back(newThread);
-				} else {
-					printf("server:but connection refused \n");
-					close(conn_fd);
-				}
-			}
-		*/
-		
-		UserRequestPackage* package = new UserRequestPackage(http_request,conn_fd, cache);
-		handleUserRequest((void*)package);
-		
 	
+	while(1){
+		HttpRequest *http_request = getHttpRequest(conn_fd);
+		reapThreadList(requestList); // Update the number of current active requests
+		if(http_request == NULL){
+		//Do we need to do any more error checking here?
+			break;
+		}
+		std::cout << http_request->FindHeader("Host") << ", " << http_request->GetPort() << ", " << http_request->GetPath() << std::endl;
+	
+		//Refuse to serve if the server is already serving too many requests.
+		if(requestList->size() < MAX_NUM_SINGLE_USER_REQUESTS){	
+			//Fork a child to handle this specific request
+			pthread_t newThread;
+			pthread_create(&newThread, NULL, ProxyServer::handleUserRequest, new UserRequestPackage(http_request,conn_fd, cache));
+			requestList->push_back(newThread);
+		} else {
+			printf("Too many user requests \n");
+		}
+	}
 	close(conn_fd);  //close the connection once we're done.
 	return NULL;
 }
