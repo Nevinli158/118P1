@@ -187,8 +187,7 @@ void* ProxyServer::handleUserConnection(void* args){
 				printf("%s\n", requestbuf);
 				recvbytes = recv(conn_fd, recvbuf, buf_size, 0);
 				continue;
-			}
-			
+			}	
 		}
 		
 		if(http_request->GetHost() == "") {
@@ -202,21 +201,14 @@ void* ProxyServer::handleUserConnection(void* args){
 
 		/*
 			std::list<pthread_t> requestList = new std::list<pthread>();
-			while(1) {  // main accept() loop
-				int conn_fd;
-				conn_fd = acceptConnection(listen_fd);
-				if (conn_fd == -1) {
-					perror("accept");
-					continue;
-				}
-				
+			while(1) {  // main accept() loop	
 				reapThreadList(requestList); // Update the number of current active connections
 				
 				//Refuse to serve if the server is already serving too many clients.
-				if(connectionList.size() < MAX_NUM_CLIENTS){	
+				if(connectionList.size() < MAX_NUM_SINGLE_USER_REQUESTS{	
 					//Fork a child to handle this specific connection
 					pthread_t newThread;
-					pthread_create(&newThread, NULL, ProxyServer::handleUserRequest, new UserRequestPackage(httpRequest,conn_fd));
+					pthread_create(&newThread, NULL, ProxyServer::handleUserRequest, new UserRequestPackage(httpRequest,conn_fd, cache));
 					requestList.push_back(newThread);
 				} else {
 					printf("server:but connection refused \n");
@@ -227,8 +219,6 @@ void* ProxyServer::handleUserConnection(void* args){
 		
 		UserRequestPackage* package = new UserRequestPackage(http_request,conn_fd, cache);
 		handleUserRequest((void*)package);
-		
-
 		
 	}
 	
