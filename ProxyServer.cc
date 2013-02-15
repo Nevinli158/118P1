@@ -153,8 +153,9 @@ void* ProxyServer::handleUserConnection(void* args){
 	UserConnectionPackage* pack = (UserConnectionPackage*)(args);
 	int conn_fd = pack->conn_fd;
 	WebCache* cache = pack->cache;
-	size_t buf_size = 1024;
-	
+
+/*	
+	size_t buf_size = 1024;	
 	size_t requestbuf_size = 0;
 	size_t max_requestbuf_size = buf_size;
 	// Full request buffer
@@ -197,8 +198,9 @@ void* ProxyServer::handleUserConnection(void* args){
 		if(http_request->GetPort() == 0) {
 			http_request->SetPort(80);
 		}
-		
-		std::cout << http_request->FindHeader("Host") << ", " << http_request->GetPort() << ", " << http_request->GetPath() << std::endl;
+*/		
+	HttpRequest *http_request = getHttpRequest(conn_fd);
+	std::cout << http_request->FindHeader("Host") << ", " << http_request->GetPort() << ", " << http_request->GetPath() << std::endl;
 
 		/*
 			std::list<pthread_t> requestList = new std::list<pthread>();
@@ -228,9 +230,6 @@ void* ProxyServer::handleUserConnection(void* args){
 		UserRequestPackage* package = new UserRequestPackage(http_request,conn_fd, cache);
 		handleUserRequest((void*)package);
 		
-
-		
-	}
 	
 	close(conn_fd);  //close the connection once we're done.
 	return NULL;
@@ -271,6 +270,58 @@ void* ProxyServer::handleUserRequest(void* args){
 		std::cout << recvbuf << std::endl;
 	}
 	return NULL;
+}
+
+HttpRequest* ProxyServer::getHttpRequest(int conn_fd) {
+	size_t buf_size = 1024;	
+	size_t requestbuf_size = 0;
+	size_t max_requestbuf_size = buf_size;
+	// Full request buffer
+	char *requestbuf = (char *) malloc(buf_size);
+	// Temp recv buffer
+	char *recvbuf = (char *) malloc(buf_size);
+	int recvbytes = recv(conn_fd, recvbuf, buf_size, 0);
+	
+	HttpRequest *http_request = new HttpRequest();
+	try {
+		http_request->ParseRequest(requestbuf, requestbuf_size);
+	} catch(ParseException e) {
+		std::cout << e.what() << std::endl;
+		while (recvbytes != 0 && recvbytes != -1) {
+			if((requestbuf_size + recvbytes) >= max_requestbuf_size) {
+				// Grow requestbuf by buf_size
+				requestbuf = (char *) realloc(requestbuf, max_requestbuf_size + buf_size);
+				max_requestbuf_size += buf_size;
+			}
+			memcpy(requestbuf + requestbuf_size, recvbuf, recvbytes);
+			requestbuf_size += recvbytes;
+			try {
+				http_request->ParseRequest(requestbuf, requestbuf_size);
+				break;
+			} catch(ParseException e) {
+				std::cout << e.what() << std::endl;
+				printf("%s\n", requestbuf);
+				recvbytes = recv(conn_fd, recvbuf, buf_size, 0);
+				continue;
+			}
+			
+		}
+	}
+	if (recvbytes == -1) {
+		perror("recv");
+	}
+	else if (recvbytes == 0){
+		printf("connection closed\n");
+	}
+	
+	if(http_request->GetHost() == "") {
+		http_request->SetHost(http_request->FindHeader("Host"));
+	}
+	if(http_request->GetPort() == 0) {
+		http_request->SetPort(80);
+	}
+		
+	return http_request;
 }
 
 void ProxyServer::reapZombies(){
