@@ -14,6 +14,7 @@
 #include <errno.h>
 #include "http-request.h"
 #include "UserConnectionPackage.h"
+#include "UserRequestPackage.h"
 #include "ProxyServer.h"
 
 /*	initServer creates/binds a socket, and returns the fd associated with the socket.
@@ -72,13 +73,13 @@ void ProxyServer::startServer(){
             continue;
         }
 		
-		reapConnectionList(); // Update the number of current active connections
+		reapThreadList(connectionList); // Update the number of current active connections
 		
 		//Refuse to serve if the server is already serving too many clients.
 		if(connectionList.size() < MAX_NUM_CLIENTS){	
 			//Fork a child to handle this specific connection
 			pthread_t newThread;
-			pthread_create(&newThread, NULL, ProxyServer::handleUserConnection, new UserConnectionPackage(conn_fd));
+			pthread_create(&newThread, NULL, ProxyServer::handleUserConnection, new UserConnectionPackage(conn_fd, new WebCache()));
 			connectionList.push_back(newThread);
 		} else {
 			printf("server:but connection refused \n");
@@ -87,15 +88,15 @@ void ProxyServer::startServer(){
     }
 }
 
-void ProxyServer::reapConnectionList(){
+void ProxyServer::reapThreadList(std::list<pthread_t> list){
 	int status = 0;
-	std::list<pthread_t>::iterator it = connectionList.begin();
+	std::list<pthread_t>::iterator it = list.begin();
 	//For each connection
-	while(it != connectionList.end()){
+	while(it != list.end()){
 		status = pthread_tryjoin_np(*it, NULL);
 		//If the connection has ended, remove it from the list.
 		if(status == 0){
-			it = connectionList.erase(it);
+			it = list.erase(it);
 		} else if(status == EBUSY){ //If the connection is still going, move on.
 			it++;
 		} else {//Error
@@ -151,6 +152,7 @@ void* ProxyServer::handleUserConnection(void* args){
 	// recv from socket into buffer
 	UserConnectionPackage* pack = (UserConnectionPackage*)(args);
 	int conn_fd = pack->conn_fd;
+	//WebCache* cache = pack->cache;
 	size_t buf_size = 1024;
 	
 	size_t requestbuf_size = 0;
@@ -189,8 +191,6 @@ void* ProxyServer::handleUserConnection(void* args){
 			
 		}
 		
-		
-		
 		if(http_request->GetHost() == "") {
 			http_request->SetHost(http_request->FindHeader("Host"));
 		}
@@ -199,6 +199,31 @@ void* ProxyServer::handleUserConnection(void* args){
 		}
 		
 		std::cout << http_request->FindHeader("Host") << ", " << http_request->GetPort() << ", " << http_request->GetPath() << std::endl;
+
+		/*
+			std::list<pthread_t> requestList = new std::list<pthread>();
+			while(1) {  // main accept() loop
+				int conn_fd;
+				conn_fd = acceptConnection(listen_fd);
+				if (conn_fd == -1) {
+					perror("accept");
+					continue;
+				}
+				
+				reapThreadList(requestList); // Update the number of current active connections
+				
+				//Refuse to serve if the server is already serving too many clients.
+				if(connectionList.size() < MAX_NUM_CLIENTS){	
+					//Fork a child to handle this specific connection
+					pthread_t newThread;
+					pthread_create(&newThread, NULL, ProxyServer::handleUserRequest, new UserRequestPackage(httpRequest,conn_fd));
+					connectionList.push_back(newThread);
+				} else {
+					printf("server:but connection refused \n");
+					close(conn_fd);
+				}
+			}
+		*/
 		
 		// Format request to remote server
 		int sendbytes = http_request->GetTotalLength();
@@ -218,22 +243,25 @@ void* ProxyServer::handleUserConnection(void* args){
 		connect(serverfd, servinfo->ai_addr, servinfo->ai_addrlen);
 		// Send request to remote server
 		if (send(serverfd, remote_request, sendbytes, 0) == -1) {
-            close(serverfd);
-            perror("handle: send");
+			close(serverfd);
+			perror("handle: send");
 			exit(-1);
 		}
 		else {
-			std::cout << "hi" << std::endl;
 			char recvbuf[buf_size];
 			recv(serverfd, recvbuf, buf_size, 0);
 			
 			std::cout << recvbuf << std::endl;
 		}
 		
-		
 	}
 	
 	close(conn_fd);  //close the connection once we're done.
+	return NULL;
+}
+
+void* ProxyServer::handleUserRequest(void* args){
+	//UserRequestPackage* package = (UserRequestPackage*)args;
 	return NULL;
 }
 
