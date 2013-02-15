@@ -198,9 +198,17 @@ void* ProxyServer::handleUserConnection(void* args){
 			http_request->SetPort(80);
 		}
 		
+		std::cout << http_request->FindHeader("Host") << ", " << http_request->GetPort() << ", " << http_request->GetPath() << std::endl;
+		
 		// Format request to remote server
-		char *remote_request = (char *) malloc(http_request->GetTotalLength());
-		int sendbytes = http_request->FormatRequest(remote_request) - remote_request;
+		int sendbytes = http_request->GetTotalLength();
+		char *remote_request = (char *) malloc(sendbytes);
+		http_request->FormatRequest(remote_request);
+		
+		for(int i = 0; i < sendbytes; i++) {
+			std::cout << remote_request[i];
+		}
+
 		
 		// Connect to remote server
 		char port[6];
@@ -215,13 +223,14 @@ void* ProxyServer::handleUserConnection(void* args){
 			exit(-1);
 		}
 		else {
+			std::cout << "hi" << std::endl;
 			char recvbuf[buf_size];
-			recv(conn_fd, recvbuf, buf_size, 0);
+			recv(serverfd, recvbuf, buf_size, 0);
 			
 			std::cout << recvbuf << std::endl;
 		}
 		
-		std::cout << http_request->FindHeader("Host") << ", " << http_request->GetPort() << ", " << http_request->GetPath() << std::endl;
+		
 	}
 	
 	close(conn_fd);  //close the connection once we're done.
