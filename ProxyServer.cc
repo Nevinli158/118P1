@@ -12,6 +12,7 @@
 #include <list>
 #include <pthread.h>
 #include <errno.h>
+#include "buffer.h"
 #include "http-request.h"
 #include "UserConnectionPackage.h"
 #include "UserRequestPackage.h"
@@ -154,51 +155,7 @@ void* ProxyServer::handleUserConnection(void* args){
 	int conn_fd = pack->conn_fd;
 	WebCache* cache = pack->cache;
 
-/*	
-	size_t buf_size = 1024;	
-	size_t requestbuf_size = 0;
-	size_t max_requestbuf_size = buf_size;
-	// Full request buffer
-	char *requestbuf = (char *) malloc(buf_size);
-	// Temp recv buffer
-	char *recvbuf = (char *) malloc(buf_size);
 		
-	int recvbytes = recv(conn_fd, recvbuf, buf_size, 0);
-	if (recvbytes == -1) {
-		perror("recv");
-	}
-	else if (recvbytes == 0){
-		printf("connection closed\n");
-	}
-	else {
-		HttpRequest *http_request = new HttpRequest();
-		while (recvbytes != 0 && recvbytes != -1) {
-			if((requestbuf_size + recvbytes) >= max_requestbuf_size) {
-				// Grow requestbuf by buf_size
-				requestbuf = (char *) realloc(requestbuf, max_requestbuf_size + buf_size);
-				max_requestbuf_size += buf_size;
-			}
-			memcpy(requestbuf + requestbuf_size, recvbuf, recvbytes);
-			requestbuf_size += recvbytes;
-			try {
-				http_request->ParseRequest(requestbuf, requestbuf_size);
-				break;
-			} catch(ParseException e) {
-				std::cout << e.what() << std::endl;
-				printf("%s\n", requestbuf);
-				recvbytes = recv(conn_fd, recvbuf, buf_size, 0);
-				continue;
-			}
-			
-		}
-		
-		if(http_request->GetHost() == "") {
-			http_request->SetHost(http_request->FindHeader("Host"));
-		}
-		if(http_request->GetPort() == 0) {
-			http_request->SetPort(80);
-		}
-*/		
 	HttpRequest *http_request = getHttpRequest(conn_fd);
 	std::cout << http_request->FindHeader("Host") << ", " << http_request->GetPort() << ", " << http_request->GetPath() << std::endl;
 
@@ -273,35 +230,26 @@ void* ProxyServer::handleUserRequest(void* args){
 }
 
 HttpRequest* ProxyServer::getHttpRequest(int conn_fd) {
-	size_t buf_size = 1024;	
-	size_t requestbuf_size = 0;
-	size_t max_requestbuf_size = buf_size;
 	// Full request buffer
-	char *requestbuf = (char *) malloc(buf_size);
+	Buffer *requestbuf = new Buffer();
 	// Temp recv buffer
-	char *recvbuf = (char *) malloc(buf_size);
-	int recvbytes = recv(conn_fd, recvbuf, buf_size, 0);
+	Buffer *recvbuf = new Buffer();
+	int recvbytes = recv(conn_fd, recvbuf->buf, recvbuf->maxsize, 0);
 	
 	HttpRequest *http_request = new HttpRequest();
 	try {
-		http_request->ParseRequest(requestbuf, requestbuf_size);
+		http_request->ParseRequest(requestbuf->buf, requestbuf->maxsize);
 	} catch(ParseException e) {
 		std::cout << e.what() << std::endl;
 		while (recvbytes != 0 && recvbytes != -1) {
-			if((requestbuf_size + recvbytes) >= max_requestbuf_size) {
-				// Grow requestbuf by buf_size
-				requestbuf = (char *) realloc(requestbuf, max_requestbuf_size + buf_size);
-				max_requestbuf_size += buf_size;
-			}
-			memcpy(requestbuf + requestbuf_size, recvbuf, recvbytes);
-			requestbuf_size += recvbytes;
+			requestbuf->add(recvbuf, recvbytes);
 			try {
-				http_request->ParseRequest(requestbuf, requestbuf_size);
+				http_request->ParseRequest(requestbuf->buf, requestbuf->size);
 				break;
 			} catch(ParseException e) {
 				std::cout << e.what() << std::endl;
-				printf("%s\n", requestbuf);
-				recvbytes = recv(conn_fd, recvbuf, buf_size, 0);
+				printf("%s\n", requestbuf->buf);
+				recvbytes = recv(conn_fd, recvbuf->buf, recvbuf->maxsize, 0);
 				continue;
 			}
 			
@@ -320,7 +268,7 @@ HttpRequest* ProxyServer::getHttpRequest(int conn_fd) {
 	if(http_request->GetPort() == 0) {
 		http_request->SetPort(80);
 	}
-		
+
 	return http_request;
 }
 
