@@ -24,10 +24,10 @@ class ProxyServer {
 		static void* handleUserConnection(void* args);
 		static void* handleUserRequest(void* args);
 		static HttpRequest* getHttpRequest(int conn_fd);
-		void reapThreadList(std::list<pthread_t> list);
+		static void reapThreadList(std::list<pthread_t> *list);
 		int listen_fd;
 
-		std::list<pthread_t> connectionList;
+		std::list<pthread_t> *connectionList;
 
 };
 		//Workaround, this function can't be in a class.
