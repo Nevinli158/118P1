@@ -28,6 +28,7 @@ def build (env):
             # Put additional files here
             # ...
             #
+			"UserRequestPackage.cc",
 			"UserConnectionPackage.cc",
 			"WebCache.cc",
 			"ReadWriteLock.cc",

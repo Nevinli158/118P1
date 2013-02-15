@@ -24,10 +24,12 @@ void WebCache::cachePage(std::string httpRequest, std::string page, std::string 
 */
 std::string WebCache::checkCache(std::string httpRequest){
 	std::map<std::string, CachedPage>::iterator it;
+	
 	m_cacheLock.lockForRead(); 
 	it = m_cache.find(httpRequest);
 	bool found = !(it == m_cache.end());
 	m_cacheLock.unlock();
+	
 	//If the request was found in the cache
 	if(found){
 		//If the page is expired, erase it.
@@ -35,7 +37,7 @@ std::string WebCache::checkCache(std::string httpRequest){
 			m_cacheLock.lockForWrite(); 
 			m_cache.erase(it);
 			m_cacheLock.unlock();
-		} else {
+		} else { //Otherwise return the cached page.
 			return (it->second).m_page;
 		}
 	}

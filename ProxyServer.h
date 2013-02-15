@@ -1,10 +1,11 @@
-#ifndef LISTEN_H
-#define LISTEN_H
+#ifndef PROXY_SERVER_H
+#define PROXY_SERVER_H
 
 #include <netdb.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <list>
+#include <pthread.h>
 class ProxyServer {
 	public:
 		ProxyServer(const char *port);
@@ -20,7 +21,8 @@ class ProxyServer {
 		void* get_in_addr(struct sockaddr *sa);
 		int acceptConnection(int listen_fd);
 		static void* handleUserConnection(void* args);
-		void reapConnectionList();
+		static void* handleUserRequest(void* args);
+		void reapThreadList(std::list<pthread_t> list);
 		int listen_fd;
 
 		std::list<pthread_t> connectionList;
