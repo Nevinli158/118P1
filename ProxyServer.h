@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <list>
 #include <pthread.h>
+#include "http-request.h"
 class ProxyServer {
 	public:
 		ProxyServer(const char *port);
@@ -22,6 +23,7 @@ class ProxyServer {
 		int acceptConnection(int listen_fd);
 		static void* handleUserConnection(void* args);
 		static void* handleUserRequest(void* args);
+		static HttpRequest* getHttpRequest(int conn_fd);
 		void reapThreadList(std::list<pthread_t> list);
 		int listen_fd;
 
