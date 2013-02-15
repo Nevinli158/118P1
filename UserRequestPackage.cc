@@ -4,6 +4,6 @@
 
 UserRequestPackage::UserRequestPackage(HttpRequest *request, int fd, WebCache* c){
 	conn_fd = fd;
-	request = http_request;
+	http_request = request;
 	cache = c;
 }

@@ -152,7 +152,7 @@ void* ProxyServer::handleUserConnection(void* args){
 	// recv from socket into buffer
 	UserConnectionPackage* pack = (UserConnectionPackage*)(args);
 	int conn_fd = pack->conn_fd;
-	//WebCache* cache = pack->cache;
+	WebCache* cache = pack->cache;
 	size_t buf_size = 1024;
 	
 	size_t requestbuf_size = 0;
@@ -225,34 +225,10 @@ void* ProxyServer::handleUserConnection(void* args){
 			}
 		*/
 		
-		// Format request to remote server
-		int sendbytes = http_request->GetTotalLength();
-		char *remote_request = (char *) malloc(sendbytes);
-		http_request->FormatRequest(remote_request);
+		UserRequestPackage* package = new UserRequestPackage(http_request,conn_fd, cache);
+		handleUserRequest((void*)package);
 		
-		for(int i = 0; i < sendbytes; i++) {
-			std::cout << remote_request[i];
-		}
 
-		
-		// Connect to remote server
-		char port[6];
-		sprintf(port, "%d", http_request->GetPort());
-		struct addrinfo *servinfo = initAddrInfo(port, http_request->GetHost().c_str());
-		int serverfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
-		connect(serverfd, servinfo->ai_addr, servinfo->ai_addrlen);
-		// Send request to remote server
-		if (send(serverfd, remote_request, sendbytes, 0) == -1) {
-			close(serverfd);
-			perror("handle: send");
-			exit(-1);
-		}
-		else {
-			char recvbuf[buf_size];
-			recv(serverfd, recvbuf, buf_size, 0);
-			
-			std::cout << recvbuf << std::endl;
-		}
 		
 	}
 	
@@ -261,7 +237,39 @@ void* ProxyServer::handleUserConnection(void* args){
 }
 
 void* ProxyServer::handleUserRequest(void* args){
-	//UserRequestPackage* package = (UserRequestPackage*)args;
+	UserRequestPackage* package = (UserRequestPackage*)args;
+	HttpRequest* http_request = package->http_request;
+	// Temp recv buffer
+	size_t buf_size = 1024;
+	
+	// Format request to remote server
+	int sendbytes = http_request->GetTotalLength();
+	char *remote_request = (char *) malloc(sendbytes);
+	http_request->FormatRequest(remote_request);
+	
+	for(int i = 0; i < sendbytes; i++) {
+		std::cout << remote_request[i];
+	}
+
+	
+	// Connect to remote server
+	char port[6];
+	sprintf(port, "%d", http_request->GetPort());
+	struct addrinfo *servinfo = initAddrInfo(port, http_request->GetHost().c_str());
+	int serverfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
+	connect(serverfd, servinfo->ai_addr, servinfo->ai_addrlen);
+	// Send request to remote server
+	if (send(serverfd, remote_request, sendbytes, 0) == -1) {
+		close(serverfd);
+		perror("handle: send");
+		exit(-1);
+	}
+	else {
+		char recvbuf[buf_size];
+		recv(serverfd, recvbuf, buf_size, 0);
+		
+		std::cout << recvbuf << std::endl;
+	}
 	return NULL;
 }
 
