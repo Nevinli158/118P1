@@ -215,7 +215,7 @@ void* ProxyServer::handleUserConnection(void* args){
 					//Fork a child to handle this specific connection
 					pthread_t newThread;
 					pthread_create(&newThread, NULL, ProxyServer::handleUserRequest, new UserRequestPackage(httpRequest,conn_fd));
-					connectionList.push_back(newThread);
+					requestList.push_back(newThread);
 				} else {
 					printf("server:but connection refused \n");
 					close(conn_fd);
