@@ -18,7 +18,7 @@
 #include "UserRequestPackage.h"
 #include "ProxyServer.h"
 
-/*	initServer creates/binds a socket, and returns the fd associated with the socket.
+/*	The constructor creates/binds a socket, and returns the fd associated with the socket.
 	port = string containing the port number desired.
 */
 ProxyServer::ProxyServer(const char *port){
