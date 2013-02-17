@@ -13,8 +13,17 @@ void Buffer::add(Buffer *b, size_t s) {
 	if(size + s >= maxsize) {
 		grow();
 	}
-	memcpy(buf + size, b->buf, s);
+	strncpy(buf + size, b->buf, s);
 	size += s;
+}
+
+void Buffer::clear() {
+	if(size > 0) {
+		for(unsigned int i = 0; i < maxsize; i++) {
+			buf[i] = '\0';
+		}
+		size = 0;
+	}
 }
 
 // Double the buffer size

@@ -8,6 +8,7 @@ class Buffer {
 public:
 	Buffer();
 	void add(Buffer *b, size_t s);
+	void clear();
 	void grow();
 	~Buffer();
 	
