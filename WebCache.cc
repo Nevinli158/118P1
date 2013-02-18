@@ -3,7 +3,9 @@
 #include <map>
 #include <string>
 #include <ctime>
+#include <cstdio>
 #include "ReadWriteLock.h"
+#include "http-request.h"
 
 WebCache::WebCache(){
 	
@@ -13,25 +15,37 @@ WebCache::WebCache(){
 	Adds the given page to the cache.
 	expTime has a default value of "".
 */
-void WebCache::cachePage(const std::string httpRequest, const std::string page, const std::string expTime){
+void WebCache::cachePage(const HttpRequest* httpRequest, const std::string page, const std::string expTime){
 	//Do not cache the page if an expiration time wasn't specified.
 	if(expTime == ""){
 		return;
 	}
+	
+	std::string request = parseRequestKey(httpRequest);
+
 	m_cacheLock.lockForWrite(); 
-	m_cache.insert(std::pair<std::string,CachedPage>(httpRequest, CachedPage(page, expTime)));
+	m_cache.insert(std::pair<std::string,CachedPage>(request, CachedPage(page, expTime)));
 	m_cacheLock.unlock();
+}
+
+std::string WebCache::parseRequestKey(const HttpRequest* httpRequest){
+	char port[6];
+	sprintf(port, "%d", httpRequest->GetPort());
+	std::string portString(port);
+	return httpRequest->GetHost() + ":" + portString + httpRequest->GetPath();
 }
 
 /*
 	Checks the cache for the given request. Returns 
 	the cached page if it was found, and NULL if it wasn't.
 */
-std::string WebCache::checkCache(const std::string httpRequest){
+std::string WebCache::checkCache(const HttpRequest* httpRequest){
 	std::map<std::string, CachedPage>::iterator it;
 	
+	std::string request = parseRequestKey(httpRequest);
+	
 	m_cacheLock.lockForRead(); 
-	it = m_cache.find(httpRequest);
+	it = m_cache.find(request);
 	bool found = !(it == m_cache.end());
 	m_cacheLock.unlock();
 	

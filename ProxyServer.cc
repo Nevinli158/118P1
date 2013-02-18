@@ -192,6 +192,7 @@ int ProxyServer::connectToServer(const char* url, unsigned short servPort){
 void* ProxyServer::handleUserRequest(void* args){
 	UserRequestPackage* package = (UserRequestPackage*)args;
 	HttpRequest* http_request = package->http_request;
+	//WebCache* cache = package->cache;
 	
 	// Format request to remote server
 	int sendbytes = http_request->GetTotalLength();

@@ -6,15 +6,16 @@
 #include <time.h>
 
 #include "ReadWriteLock.h"
+#include "http-request.h"
 
 class WebCache {
 
 	public:
 		WebCache();
 		//Adds the page associated with the httprequest to the cache.
-		void cachePage(const std::string httpRequest, const std::string page, const std::string expTime = "");
+		void cachePage(const HttpRequest* httpRequest, const std::string page, const std::string expTime = "");
 		//Checks the cache for the given request, and returns the page if it's available and not timed out.
-		std::string checkCache(const std::string httpRequest);
+		std::string checkCache(const HttpRequest* httpRequest);
 		
 	private:
 		class CachedPage{
@@ -26,6 +27,7 @@ class WebCache {
 		
 		//Returns whether or not the cached page is expired.
 		bool isPageExpired(const CachedPage page);
+		std::string parseRequestKey(const HttpRequest* httpRequest);
 		
 		std::map<std::string, CachedPage> m_cache;
 		ReadWriteLock m_cacheLock;
