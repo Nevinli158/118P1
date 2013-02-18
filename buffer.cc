@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <string.h>
+#include <iostream>
 #include "buffer.h"
 
 Buffer::Buffer() {
@@ -46,6 +47,13 @@ void Buffer::clear() {
 void Buffer::grow() {
 	maxsize *= 2;
 	buf = (char *)realloc(buf, maxsize * sizeof(char));
+}
+
+void Buffer::print() {
+	for(unsigned int i = 0; i < size; i++) {
+		std::cout << buf[i];
+	}
+	std::cout << std::endl;
 }
 
 Buffer::~Buffer() {

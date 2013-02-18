@@ -12,6 +12,7 @@ public:
 	void add(char c);
 	void clear();
 	void grow();
+	void print();
 	~Buffer();
 	
 	char *buf;

@@ -208,7 +208,7 @@ void* ProxyServer::handleUserRequest(void* args){
 		char c;
 		Buffer *response = new Buffer();
 		while(response->size < 4 || 
-				strstr(response->buf + response->size - 4, "\r\n\r\n") != NULL) {
+				strstr(response->buf + response->size - 4, "\r\n\r\n") == NULL) {
 			if(recv(serverfd, &c, 1, 0) != -1) {
 				response->add(c);
 			}
@@ -238,6 +238,8 @@ void* ProxyServer::handleUserRequest(void* args){
 		}
 		
 		response->add(message_body, content_length);
+		response->print();
+		
 		try {
 			http_response->ParseResponse(response->buf, response->size);
 		} catch (ParseException e) {
@@ -245,9 +247,7 @@ void* ProxyServer::handleUserRequest(void* args){
 			// TODO: error
 		}
 		
-		char *sendbuf = (char *) calloc(response->size, 1);
-		http_response->FormatResponse(sendbuf);
-		if (send(package->conn_fd, remote_request, sendbytes, 0) == -1) {
+		if (send(package->conn_fd, response->buf, response->size, 0) == -1) {
 			close(package->conn_fd);
 			perror("handle: send client response");
 			exit(-1);
