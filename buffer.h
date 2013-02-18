@@ -7,6 +7,7 @@
 class Buffer {
 public:
 	Buffer();
+	Buffer(Buffer& b);
 	void add(Buffer *b, size_t s);
 	void add(char *c, size_t s);
 	void add(char c);
