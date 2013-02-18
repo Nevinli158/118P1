@@ -242,7 +242,8 @@ void* ProxyServer::handleUserRequest(void* args){
 				return NULL;
 			}
 		}
-			
+		
+		// Parse header for content-length
 		HttpResponse *http_response = new HttpResponse();
 		http_response->ParseResponse(response->buf, response->size);
 		std::string l = http_response->FindHeader("Content-Length");
@@ -264,8 +265,6 @@ void* ProxyServer::handleUserRequest(void* args){
 		
 		close(serverfd);
 		
-		// If expires, insert into cache
-		
 		response->add(message_body, content_length);
 		response->print();
 		
@@ -276,7 +275,7 @@ void* ProxyServer::handleUserRequest(void* args){
 			return NULL;
 		}
 
-		//TODO: copy response buffer
+		// Add page to the cache
 		cache->cachePage(http_request,response,http_response->FindHeader("Expires"));
 
 		// Send response to client
@@ -292,22 +291,20 @@ void* ProxyServer::handleUserRequest(void* args){
 
 HttpRequest* ProxyServer::getHttpRequest(int conn_fd) {
 	char c;
-	Buffer *request	= new Buffer();
-	while(request->size < 4 || 
-			strstr(request->buf + request->size - 4, "\r\n\r\n") == NULL) {
+	Buffer request;
+	while(request.size < 4 || 
+			strstr(request.buf + request.size - 4, "\r\n\r\n") == NULL) {
 		if(recv(conn_fd, &c, 1, 0) != -1) {
-			request->add(c);
+			request.add(c);
 		}
 		else {
-			delete request;
-			request = NULL;
 			return NULL;
 		}
 	}
 	
 	HttpRequest *http_request = new HttpRequest();
 	try {
-		http_request->ParseRequest(request->buf, request->size);
+		http_request->ParseRequest(request.buf, request.size);
 	} catch (ParseException e) {
 		sendError(conn_fd, http_request->GetVersion(), "400", "Bad Request");
 		return NULL;

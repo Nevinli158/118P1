@@ -48,6 +48,7 @@ Buffer* WebCache::checkCache(const HttpRequest* httpRequest){
 		//If the page is expired, erase it.
 		if(isPageExpired(it->second)){
 			m_cacheLock.lockForWrite(); 
+			delete (it->second).m_page;
 			m_cache.erase(it);
 			m_cacheLock.unlock();
 		} else { //Otherwise return the cached page.
