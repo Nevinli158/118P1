@@ -3,18 +3,34 @@
 #include "buffer.h"
 
 Buffer::Buffer() {
-	buf = (char *) malloc(maxsize * sizeof(char));
 	size = 0;
 	maxsize = MAXBUFSIZE;
+	buf = (char *) malloc(maxsize * sizeof(char));
 }
 
 // Copy into buf s amount of characters from b
 void Buffer::add(Buffer *b, size_t s) {
-	if(size + s >= maxsize) {
+	while(size + s >= maxsize) {
 		grow();
 	}
 	strncpy(buf + size, b->buf, s);
 	size += s;
+}
+
+void Buffer::add(char *c, size_t s) {
+	while(size + s >= maxsize) {
+		grow();
+	}
+	strncpy(buf + size, c, s);
+	size += s;
+}
+
+void Buffer::add(char c) {
+	if(size + 1 >= maxsize) {
+		grow();
+	}
+	buf[size] = c;
+	size++;
 }
 
 void Buffer::clear() {

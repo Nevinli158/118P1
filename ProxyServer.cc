@@ -14,6 +14,7 @@
 #include <errno.h>
 #include "buffer.h"
 #include "http-request.h"
+#include "http-response.h"
 #include "UserConnectionPackage.h"
 #include "UserRequestPackage.h"
 #include "ProxyServer.h"
@@ -165,7 +166,7 @@ void* ProxyServer::handleUserConnection(void* args){
 		if(requestList->size() < MAX_NUM_SINGLE_USER_REQUESTS){	
 			//Fork a child to handle this specific request
 			pthread_t newThread;
-			std::cout << "hi" << std::endl;
+			
 			pthread_create(&newThread, NULL, ProxyServer::handleUserRequest, new UserRequestPackage(http_request,conn_fd, cache));
 			requestList->push_back(newThread);
 		} else {
@@ -197,108 +198,62 @@ void* ProxyServer::handleUserRequest(void* args){
 	int serverfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
 	connect(serverfd, servinfo->ai_addr, servinfo->ai_addrlen);
 
-	// Send HEAD request to remote server 
-	// Use HEAD request to get Content-Length header to know size of response
-	char head_request[1024];
-	char *bufLastPos = head_request;
-	// Construct HEAD request
-	bufLastPos = stpncpy(bufLastPos, "HEAD ", 5);
-	bufLastPos = stpncpy(bufLastPos, http_request->GetPath().c_str(), http_request->GetPath().size());
-	bufLastPos = stpncpy(bufLastPos, " HTTP/", 6);
-	bufLastPos = stpncpy(bufLastPos, http_request->GetVersion().c_str(), http_request->GetVersion().size());
-	bufLastPos = stpncpy(bufLastPos, "\r\n", 2);
-	bufLastPos = stpncpy(bufLastPos, "\r\n", 2);
-	for(int i = 0; i < 1024; i++) {
-		std::cout << head_request[i];
-	}
-
-
-	// Send HEAD request
-	if (send(serverfd, head_request, bufLastPos - head_request, 0) == -1) {
-		close(serverfd);
-		perror("handle: header send");
-		exit(-1);
-	}
-	else {
-		// Print out HEAD response
-		char recvbuf[1024];
-		int recvbytes = recv(serverfd, recvbuf, 1024, 0);
-		printf("%s\n%d\n", recvbuf, recvbytes);
-
-		// ***UNTESTED CODE***
-		// Should parse HEAD response for Content-Length header
-		// and get the full GET response
-
-/*		HttpHeaders response_header;
-		// Parse header for Content-Length
-		response_header.ParseHeaders(recvbuf, recvbytes);
-		std::string l = response_header.FindHeader("Content-Length");
-		int content_length = atoi(l.c_str());
-		// Send full GET request
-		if (send(serverfd, remote_request, sendbytes, 0) == -1) {
-			close(serverfd);
-			perror("handle: send");
-			exit(-1);
-		}
-		else {
-			int response_size = response_header.GetTotalLength() + content_length;
-			char buffer[response_size];
-			int recvbytes = recv(serverfd, buffer, response_size, 0);
-			printf("%s\n", buffer);
-			std::cout << recvbytes << std::endl;
-		}
-*/	}
-
-
-	// ***OLD RESPONSE CODE DO NOT USE***
-	/*
-	// Send GET request to remote server
+	// Send full GET request
 	if (send(serverfd, remote_request, sendbytes, 0) == -1) {
 		close(serverfd);
-		perror("handle: send");
+		perror("handle: send server request");
 		exit(-1);
 	}
-	// Construct response from remote server
 	else {
-		
-		
-		// Full response buffer asdf
-		Buffer *responsebuf = new Buffer();
-		// Temp recv buffer
-		Buffer *recvbuf = new Buffer();
-		int recvbytes = recv(serverfd, recvbuf->buf, recvbuf->maxsize, 0);
-		
-		HttpResponse *http_response = new HttpResponse();
-		try {
-			http_response->ParseResponse(responsebuf->buf, responsebuf->maxsize);
-		} catch(ParseException e) {
-			std::cout << e.what() << std::endl;
-			while (recvbytes != 0 && recvbytes != -1) {
-				std::cout << "hi" << std::endl;
-				responsebuf->add(recvbuf, recvbytes);
-				try {
-					http_response->ParseResponse(responsebuf->buf, responsebuf->size);
-					break;
-				} catch(ParseException e) {
-					std::cout << e.what() << std::endl;
-					printf("%s\n", responsebuf->buf);
-					recvbytes = recv(serverfd, recvbuf->buf, recvbuf->maxsize, 0);
-					continue;
-				}164.67.100.233
-				
+		char c;
+		Buffer *response = new Buffer();
+		while(response->size < 4 || 
+				strstr(response->buf + response->size - 4, "\r\n\r\n") != NULL) {
+			if(recv(serverfd, &c, 1, 0) != -1) {
+				response->add(c);
+			}
+			else {
+				std::cout << "recv error: headers" << std::endl;
+				break; // TODO: error if connection unexpectedly closes
 			}
 		}
-		if (recvbytes == -1) {
-			perror("recv");
+			
+		HttpResponse *http_response = new HttpResponse();
+		http_response->ParseResponse(response->buf, response->size);
+		std::string l = http_response->FindHeader("Content-Length");
+		if(l == "") {
+			// TODO: no content length error
+			std::cout << "no content length" << std::endl;
 		}
-		else if (recvbytes == 0){
-			printf("connection closed\n");
+		int content_length = atoi(l.c_str());
+		int count = 0;
+		char *message_body = (char *) calloc(content_length, 1);
+		while(count < content_length) {
+			int recvbytes = recv(serverfd, message_body + count, content_length - count, 0);
+			if(recvbytes == -1) {
+				// TODO: error if connection unexpectedly closes
+				std::cout << "recv error: message body" << std::endl;
+			}
+			count += recvbytes;
 		}
-		HttpRequest* ProxyServer::getHttpRequest(int conn_fd) {
-	// Full request buffer
+		
+		response->add(message_body, content_length);
+		try {
+			http_response->ParseResponse(response->buf, response->size);
+		} catch (ParseException e) {
+			std::cout << e.what() << std::endl;
+			// TODO: error
+		}
+		
+		char *sendbuf = (char *) calloc(response->size, 1);
+		http_response->FormatResponse(sendbuf);
+		if (send(package->conn_fd, remote_request, sendbytes, 0) == -1) {
+			close(package->conn_fd);
+			perror("handle: send client response");
+			exit(-1);
+		}
+	}
 
-		std::cout << responsebuf << std::endl;
-	}*/
 	return NULL;
 }
 
