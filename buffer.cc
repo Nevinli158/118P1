@@ -9,6 +9,14 @@ Buffer::Buffer() {
 	buf = (char *) malloc(maxsize * sizeof(char));
 }
 
+Buffer::Buffer(Buffer& b) {
+	size = b.size;
+	maxsize = b.maxsize;
+	buf = (char *) malloc(maxsize * sizeof(char));
+	
+	strncpy(buf, b.buf, b.size);
+}
+
 // Copy into buf s amount of characters from b
 void Buffer::add(Buffer *b, size_t s) {
 	while(size + s >= maxsize) {

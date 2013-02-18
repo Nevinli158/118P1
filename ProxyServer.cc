@@ -197,17 +197,23 @@ void* ProxyServer::handleUserRequest(void* args){
 	// Format request to remote server
 	int sendbytes = http_request->GetTotalLength();
 	char *remote_request = (char *) malloc(sendbytes);
-	http_request->FormatRequest(remote_request);
+	try {
+		http_request->FormatRequest(remote_request);
+	} catch(ParseException e) {
+		sendError(package->conn_fd, http_request->GetVersion(), "501", "Method Not Implemented");
+		return NULL;
+	}
 	
 	std::cout <<"Handling Request:\n";
 	for(int i = 0; i < sendbytes; i++) {
 		std::cout << remote_request[i];
 	}
 	
+// If found in cache, return to client
 	Buffer* cachedPage = cache->checkCache(http_request);
 	if(cachedPage != NULL){
 		if (send(package->conn_fd, cachedPage->buf, cachedPage->size, 0) == -1) {
-			close(package->conn_fd);
+		close(package->conn_fd);
 			perror("handle: send client response");
 			exit(-1);
 		}
@@ -232,8 +238,8 @@ void* ProxyServer::handleUserRequest(void* args){
 				response->add(c);
 			}
 			else {
-				std::cout << "recv error: headers" << std::endl;
-				break; // TODO: error if connection unexpectedly closes
+				sendError(package->conn_fd, http_request->GetVersion(), "500", "Internal Server Error");
+				return NULL;
 			}
 		}
 			
@@ -241,8 +247,8 @@ void* ProxyServer::handleUserRequest(void* args){
 		http_response->ParseResponse(response->buf, response->size);
 		std::string l = http_response->FindHeader("Content-Length");
 		if(l == "") {
-			// TODO: no content length error
-			std::cout << "no content length" << std::endl;
+			sendError(package->conn_fd, http_request->GetVersion(), "500", "Internal Server Error");
+			return NULL;
 		}
 		int content_length = atoi(l.c_str());
 		int count = 0;
@@ -250,13 +256,15 @@ void* ProxyServer::handleUserRequest(void* args){
 		while(count < content_length) {
 			int recvbytes = recv(serverfd, message_body + count, content_length - count, 0);
 			if(recvbytes == -1) {
-				// TODO: error if connection unexpectedly closes
-				std::cout << "recv error: message body" << std::endl;
+				sendError(package->conn_fd, http_request->GetVersion(), "500", "Internal Server Error");
+				return NULL;
 			}
 			count += recvbytes;
 		}
 		
 		close(serverfd);
+		
+		// If expires, insert into cache
 		
 		response->add(message_body, content_length);
 		response->print();
@@ -264,12 +272,14 @@ void* ProxyServer::handleUserRequest(void* args){
 		try {
 			http_response->ParseResponse(response->buf, response->size);
 		} catch (ParseException e) {
-			std::cout << e.what() << std::endl;
-			// TODO: error
+			sendError(package->conn_fd, http_request->GetVersion(), "500", "Internal Server Error");
+			return NULL;
 		}
-		//TODO: new stuff
+
+		//TODO: copy response buffer
 		cache->cachePage(http_request,response,http_response->FindHeader("Expires"));
-		
+
+		// Send response to client
 		if (send(package->conn_fd, response->buf, response->size, 0) == -1) {
 			close(package->conn_fd);
 			perror("handle: send client response");
@@ -289,8 +299,9 @@ HttpRequest* ProxyServer::getHttpRequest(int conn_fd) {
 			request->add(c);
 		}
 		else {
-			std::cout << "recv error: headers" << std::endl;
-			break; // TODO: error if connection unexpectedly closes
+			delete request;
+			request = NULL;
+			return NULL;
 		}
 	}
 	
@@ -298,15 +309,8 @@ HttpRequest* ProxyServer::getHttpRequest(int conn_fd) {
 	try {
 		http_request->ParseRequest(request->buf, request->size);
 	} catch (ParseException e) {
-		HttpResponse badrequest;
-		badrequest.SetVersion(http_request->GetVersion());
-		badrequest.SetStatusCode("400");
-		badrequest.SetStatusMsg("Bad request");
-		
-		char *buffer = (char *) calloc(badrequest.GetTotalLength(), 1);
-		badrequest.FormatResponse(buffer);
-		
-		send(conn_fd, buffer, badrequest.GetTotalLength(), 0);
+		sendError(conn_fd, http_request->GetVersion(), "400", "Bad Request");
+		return NULL;
 	}
 	
 	if(http_request->GetHost() == "") {
@@ -317,6 +321,18 @@ HttpRequest* ProxyServer::getHttpRequest(int conn_fd) {
 	}
 
 	return http_request;
+}
+
+void ProxyServer::sendError(int conn_fd, std::string version, std::string code, std::string message) {
+	HttpResponse badrequest;
+	badrequest.SetVersion(version);
+	badrequest.SetStatusCode(code);
+	badrequest.SetStatusMsg(message);
+	
+	char *buffer = (char *) calloc(badrequest.GetTotalLength(), 1);
+	badrequest.FormatResponse(buffer);
+	
+	send(conn_fd, buffer, badrequest.GetTotalLength(), 0);
 }
 
 void ProxyServer::reapZombies(){
