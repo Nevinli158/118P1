@@ -3,12 +3,14 @@
 #include <iostream>
 #include "buffer.h"
 
+// Constructor
 Buffer::Buffer() {
 	size = 0;
 	maxsize = MAXBUFSIZE;
 	buf = (char *) malloc(maxsize * sizeof(char));
 }
 
+// Copy Constructor
 Buffer::Buffer(Buffer& b) {
 	size = b.size;
 	maxsize = b.maxsize;
@@ -26,6 +28,7 @@ void Buffer::add(Buffer *b, size_t s) {
 	size += s;
 }
 
+// Copy into buf s amount of characters from c
 void Buffer::add(char *c, size_t s) {
 	while(size + s >= maxsize) {
 		grow();
@@ -34,6 +37,7 @@ void Buffer::add(char *c, size_t s) {
 	size += s;
 }
 
+// Add c to the end of buf
 void Buffer::add(char c) {
 	if(size + 1 >= maxsize) {
 		grow();
@@ -42,6 +46,7 @@ void Buffer::add(char c) {
 	size++;
 }
 
+// Clear the buffer
 void Buffer::clear() {
 	if(size > 0) {
 		for(unsigned int i = 0; i < maxsize; i++) {
@@ -57,6 +62,7 @@ void Buffer::grow() {
 	buf = (char *)realloc(buf, maxsize * sizeof(char));
 }
 
+// Print out the contents of buf
 void Buffer::print() {
 	for(unsigned int i = 0; i < size; i++) {
 		std::cout << buf[i];

@@ -184,7 +184,9 @@ int ProxyServer::connectToServer(const char* url, unsigned short servPort){
 	char port[6];
 	sprintf(port, "%d", servPort);
 	struct addrinfo *servinfo = initAddrInfo(port, url);
+	// Open new socket to server
 	int serverfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
+	// Connect to server on socket
 	connect(serverfd, servinfo->ai_addr, servinfo->ai_addrlen);
 	return serverfd;
 }
@@ -209,7 +211,7 @@ void* ProxyServer::handleUserRequest(void* args){
 		std::cout << remote_request[i];
 	}
 	
-// If found in cache, return to client
+	// If found in cache, return to client
 	Buffer* cachedPage = cache->checkCache(http_request);
 	if(cachedPage != NULL){
 		if (send(package->conn_fd, cachedPage->buf, cachedPage->size, 0) == -1) {
@@ -231,11 +233,12 @@ void* ProxyServer::handleUserRequest(void* args){
 	}
 	else {
 		char c;
-		Buffer *response = new Buffer();
-		while(response->size < 4 || 
-				strstr(response->buf + response->size - 4, "\r\n\r\n") == NULL) {
+		Buffer response;
+		// Read in bytes from client socket
+		while(response.size < 4 || 
+				strstr(response.buf + response.size - 4, "\r\n\r\n") == NULL) {
 			if(recv(serverfd, &c, 1, 0) != -1) {
-				response->add(c);
+				response.add(c);
 			}
 			else {
 				sendError(package->conn_fd, http_request->GetVersion(), "500", "Internal Server Error");
@@ -245,7 +248,7 @@ void* ProxyServer::handleUserRequest(void* args){
 		
 		// Parse header for content-length
 		HttpResponse *http_response = new HttpResponse();
-		http_response->ParseResponse(response->buf, response->size);
+		http_response->ParseResponse(response.buf, response.size);
 		std::string l = http_response->FindHeader("Content-Length");
 		if(l == "") {
 			sendError(package->conn_fd, http_request->GetVersion(), "500", "Internal Server Error");
@@ -254,6 +257,7 @@ void* ProxyServer::handleUserRequest(void* args){
 		int content_length = atoi(l.c_str());
 		int count = 0;
 		char *message_body = (char *) calloc(content_length, 1);
+		// Recv the response from the server until full content-length received
 		while(count < content_length) {
 			int recvbytes = recv(serverfd, message_body + count, content_length - count, 0);
 			if(recvbytes == -1) {
@@ -265,21 +269,23 @@ void* ProxyServer::handleUserRequest(void* args){
 		
 		close(serverfd);
 		
-		response->add(message_body, content_length);
-		response->print();
+		// Add the message body to the full response
+		response.add(message_body, content_length);
+		response.print();
 		
+		// Check response for validity
 		try {
-			http_response->ParseResponse(response->buf, response->size);
+			http_response->ParseResponse(response.buf, response.size);
 		} catch (ParseException e) {
 			sendError(package->conn_fd, http_request->GetVersion(), "500", "Internal Server Error");
 			return NULL;
 		}
 
 		// Add page to the cache
-		cache->cachePage(http_request,response,http_response->FindHeader("Expires"));
+		cache->cachePage(http_request,new Buffer(response),http_response->FindHeader("Expires"));
 
 		// Send response to client
-		if (send(package->conn_fd, response->buf, response->size, 0) == -1) {
+		if (send(package->conn_fd, response.buf, response.size, 0) == -1) {
 			close(package->conn_fd);
 			perror("handle: send client response");
 			exit(-1);
@@ -292,6 +298,7 @@ void* ProxyServer::handleUserRequest(void* args){
 HttpRequest* ProxyServer::getHttpRequest(int conn_fd) {
 	char c;
 	Buffer request;
+	// Read in bytes from client socket
 	while(request.size < 4 || 
 			strstr(request.buf + request.size - 4, "\r\n\r\n") == NULL) {
 		if(recv(conn_fd, &c, 1, 0) != -1) {
@@ -301,7 +308,7 @@ HttpRequest* ProxyServer::getHttpRequest(int conn_fd) {
 			return NULL;
 		}
 	}
-	
+	// Build HTTP request
 	HttpRequest *http_request = new HttpRequest();
 	try {
 		http_request->ParseRequest(request.buf, request.size);
@@ -310,6 +317,7 @@ HttpRequest* ProxyServer::getHttpRequest(int conn_fd) {
 		return NULL;
 	}
 	
+	// Set the Host and Port based on parsed request
 	if(http_request->GetHost() == "") {
 		http_request->SetHost(http_request->FindHeader("Host"));
 	}
@@ -321,6 +329,7 @@ HttpRequest* ProxyServer::getHttpRequest(int conn_fd) {
 }
 
 void ProxyServer::sendError(int conn_fd, std::string version, std::string code, std::string message) {
+	// Construct HTTP response with status code/msg
 	HttpResponse badrequest;
 	badrequest.SetVersion(version);
 	badrequest.SetStatusCode(code);
@@ -328,7 +337,7 @@ void ProxyServer::sendError(int conn_fd, std::string version, std::string code, 
 	
 	char *buffer = (char *) calloc(badrequest.GetTotalLength(), 1);
 	badrequest.FormatResponse(buffer);
-	
+	// Send error message to client
 	send(conn_fd, buffer, badrequest.GetTotalLength(), 0);
 }
 
