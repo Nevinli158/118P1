@@ -177,6 +177,15 @@ void* ProxyServer::handleUserConnection(void* args){
 	return NULL;
 }
 
+int ProxyServer::connectToServer(const char* url, unsigned short servPort){
+	char port[6];
+	sprintf(port, "%d", servPort);
+	struct addrinfo *servinfo = initAddrInfo(port, url);
+	int serverfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
+	connect(serverfd, servinfo->ai_addr, servinfo->ai_addrlen);
+	return serverfd;
+}
+
 void* ProxyServer::handleUserRequest(void* args){
 	UserRequestPackage* package = (UserRequestPackage*)args;
 	HttpRequest* http_request = package->http_request;
@@ -189,14 +198,15 @@ void* ProxyServer::handleUserRequest(void* args){
 	for(int i = 0; i < sendbytes; i++) {
 		std::cout << remote_request[i];
 	}
-
 	
+	int serverfd = connectToServer(http_request->GetHost().c_str(), http_request->GetPort());
+
 	// Connect to remote server
-	char port[6];
+	/*char port[6];
 	sprintf(port, "%d", http_request->GetPort());
 	struct addrinfo *servinfo = initAddrInfo(port, http_request->GetHost().c_str());
 	int serverfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
-	connect(serverfd, servinfo->ai_addr, servinfo->ai_addrlen);
+	connect(serverfd, servinfo->ai_addr, servinfo->ai_addrlen);*/
 
 	// Send full GET request
 	if (send(serverfd, remote_request, sendbytes, 0) == -1) {

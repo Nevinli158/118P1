@@ -25,6 +25,7 @@ class ProxyServer {
 		static void* handleUserRequest(void* args);
 		static HttpRequest* getHttpRequest(int conn_fd);
 		static void reapThreadList(std::list<pthread_t> *list);
+		static int connectToServer(const char* url, unsigned short port);
 		int listen_fd;
 
 		std::list<pthread_t> *connectionList;
