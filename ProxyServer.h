@@ -7,6 +7,7 @@
 #include <list>
 #include <pthread.h>
 #include "http-request.h"
+#include "WebCache.h"
 class ProxyServer {
 	public:
 		ProxyServer(const char *port);
@@ -27,7 +28,7 @@ class ProxyServer {
 		static void reapThreadList(std::list<pthread_t> *list);
 		static int connectToServer(const char* url, unsigned short port);
 		int listen_fd;
-
+		WebCache* cache;
 		std::list<pthread_t> *connectionList;
 
 };

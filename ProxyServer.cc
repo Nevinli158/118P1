@@ -18,12 +18,14 @@
 #include "UserConnectionPackage.h"
 #include "UserRequestPackage.h"
 #include "ProxyServer.h"
+#include "WebCache.h"
 
 /*	The constructor creates/binds a socket, and returns the fd associated with the socket.
 	port = string containing the port number desired.
 */
 ProxyServer::ProxyServer(const char *port){
 	connectionList = new std::list<pthread_t>();
+	cache = new WebCache();
 
 	//Load address info struct
 	struct addrinfo *servinfo = initAddrInfo(port);
@@ -83,7 +85,7 @@ void ProxyServer::startServer(){
 		if(connectionList->size() < MAX_NUM_CLIENTS){	
 			//Fork a child to handle this specific connection
 			pthread_t newThread;
-			pthread_create(&newThread, NULL, ProxyServer::handleUserConnection, new UserConnectionPackage(conn_fd, new WebCache()));
+			pthread_create(&newThread, NULL, ProxyServer::handleUserConnection, new UserConnectionPackage(conn_fd, cache));
 			connectionList->push_back(newThread);
 		} else {
 			printf("server:but connection refused \n");
