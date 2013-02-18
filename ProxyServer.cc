@@ -134,6 +134,7 @@ int ProxyServer::acceptConnection(int listen_fd){
 	struct sockaddr_storage their_addr; // connector's address information
 	char s[INET6_ADDRSTRLEN];
 	socklen_t sin_size = sizeof their_addr;
+	printf("server: Accepting connections:\n");
 	int new_fd = accept(listen_fd, (struct sockaddr *)&their_addr, &sin_size);
 	if (new_fd == -1) {
 		return -1;
@@ -195,18 +196,13 @@ void* ProxyServer::handleUserRequest(void* args){
 	char *remote_request = (char *) malloc(sendbytes);
 	http_request->FormatRequest(remote_request);
 	
+	std::cout <<"Handling Request:\n";
 	for(int i = 0; i < sendbytes; i++) {
 		std::cout << remote_request[i];
 	}
 	
 	int serverfd = connectToServer(http_request->GetHost().c_str(), http_request->GetPort());
-
-	// Connect to remote server
-	/*char port[6];
-	sprintf(port, "%d", http_request->GetPort());
-	struct addrinfo *servinfo = initAddrInfo(port, http_request->GetHost().c_str());
-	int serverfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
-	connect(serverfd, servinfo->ai_addr, servinfo->ai_addrlen);*/
+	std::cout <<"Connected to remote server:\n";
 
 	// Send full GET request
 	if (send(serverfd, remote_request, sendbytes, 0) == -1) {
@@ -246,6 +242,8 @@ void* ProxyServer::handleUserRequest(void* args){
 			}
 			count += recvbytes;
 		}
+		
+		close(serverfd);
 		
 		response->add(message_body, content_length);
 		response->print();
