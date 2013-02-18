@@ -192,7 +192,7 @@ int ProxyServer::connectToServer(const char* url, unsigned short servPort){
 void* ProxyServer::handleUserRequest(void* args){
 	UserRequestPackage* package = (UserRequestPackage*)args;
 	HttpRequest* http_request = package->http_request;
-	//WebCache* cache = package->cache;
+	WebCache* cache = package->cache;
 	
 	// Format request to remote server
 	int sendbytes = http_request->GetTotalLength();
@@ -202,6 +202,16 @@ void* ProxyServer::handleUserRequest(void* args){
 	std::cout <<"Handling Request:\n";
 	for(int i = 0; i < sendbytes; i++) {
 		std::cout << remote_request[i];
+	}
+	
+	Buffer* cachedPage = cache->checkCache(http_request);
+	if(cachedPage != NULL){
+		if (send(package->conn_fd, cachedPage->buf, cachedPage->size, 0) == -1) {
+			close(package->conn_fd);
+			perror("handle: send client response");
+			exit(-1);
+		}
+		return NULL;
 	}
 	
 	int serverfd = connectToServer(http_request->GetHost().c_str(), http_request->GetPort());
@@ -257,6 +267,8 @@ void* ProxyServer::handleUserRequest(void* args){
 			std::cout << e.what() << std::endl;
 			// TODO: error
 		}
+		//TODO: new stuff
+		cache->cachePage(http_request,response,http_response->FindHeader("Expires"));
 		
 		if (send(package->conn_fd, response->buf, response->size, 0) == -1) {
 			close(package->conn_fd);

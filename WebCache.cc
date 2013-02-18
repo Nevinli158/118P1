@@ -6,6 +6,7 @@
 #include <cstdio>
 #include "ReadWriteLock.h"
 #include "http-request.h"
+#include "buffer.h"
 
 WebCache::WebCache(){
 	
@@ -15,7 +16,7 @@ WebCache::WebCache(){
 	Adds the given page to the cache.
 	expTime has a default value of "".
 */
-void WebCache::cachePage(const HttpRequest* httpRequest, const std::string page, const std::string expTime){
+void WebCache::cachePage(const HttpRequest* httpRequest, Buffer* page, const std::string expTime){
 	//Do not cache the page if an expiration time wasn't specified.
 	if(expTime == ""){
 		return;
@@ -28,18 +29,11 @@ void WebCache::cachePage(const HttpRequest* httpRequest, const std::string page,
 	m_cacheLock.unlock();
 }
 
-std::string WebCache::parseRequestKey(const HttpRequest* httpRequest){
-	char port[6];
-	sprintf(port, "%d", httpRequest->GetPort());
-	std::string portString(port);
-	return httpRequest->GetHost() + ":" + portString + httpRequest->GetPath();
-}
-
 /*
 	Checks the cache for the given request. Returns 
 	the cached page if it was found, and NULL if it wasn't.
 */
-std::string WebCache::checkCache(const HttpRequest* httpRequest){
+Buffer* WebCache::checkCache(const HttpRequest* httpRequest){
 	std::map<std::string, CachedPage>::iterator it;
 	
 	std::string request = parseRequestKey(httpRequest);
@@ -60,8 +54,18 @@ std::string WebCache::checkCache(const HttpRequest* httpRequest){
 			return (it->second).m_page;
 		}
 	}
+	//TODO: check later
 	return NULL;
 }
+
+
+std::string WebCache::parseRequestKey(const HttpRequest* httpRequest){
+	char port[6];
+	sprintf(port, "%d", httpRequest->GetPort());
+	std::string portString(port);
+	return httpRequest->GetHost() + ":" + portString + httpRequest->GetPath();
+}
+
 
 /*Returns true if the cached page expired, based on the 
 	current system time.
@@ -74,7 +78,7 @@ bool WebCache::isPageExpired(const CachedPage page){
 
 
 
-WebCache::CachedPage::CachedPage(const std::string page, const std::string expTime){
+WebCache::CachedPage::CachedPage(Buffer* page, const std::string expTime){
 	m_page = page;
 	tm* t = new tm(); 
 	strptime(expTime.c_str(), "%a, %d %b %Y %H:%M:%S",t);
