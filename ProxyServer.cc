@@ -196,7 +196,7 @@ void* ProxyServer::handleUserRequest(void* args){
 	
 	// Format request to remote server
 	int sendbytes = http_request->GetTotalLength();
-	char *remote_request = (char *) malloc(sendbytes);
+	char *remote_request = new char[sendbytes];
 	try {
 		http_request->FormatRequest(remote_request);
 	} catch(ParseException e) {

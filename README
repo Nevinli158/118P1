@@ -1,32 +1,23 @@
-General
-=======
-
-To learn more about ./waf, refer to http://code.google.com/p/waf/
-and http://waf.googlecode.com/svn/docs/wafbook/single.html
-
-Ideally, you will need only to add your source files in wscript, which is basically a Python program.
-
-How to use skeleton
-===================
-
-Due to restrictions on lnxsrv, several steps necessary to compile and run (if you're using this skeleton):
-
-1. The following lines should be added to your ~/.bashrc
-
-export PATH=/usr/local/cs/bin:$PATH
-export LD_LIBRARY_PATH=/u/cs/grad/yingdi/boost/lib:/usr/local/lib64/:$LD_LIBRARY_PATH
-
-2. To configure environment
-
-./waf configure
-
-If there are any errors, please email me.
-
-3. To build/rebuild the code
-
-./waf
-
-4. All compiled executables are located in build/, so you can run them as this:
-
-build/http-proxy
-
+	We built a proxy server that takes client requests, checks the validity of
+the requests, forwards requests to the desired server, and sends the responses
+to the client. The proxy server listens for connections on a socket and then 
+reads HTTP requests out of the socket. This HTTP request is the processed and 
+sent to the client specified server. The proxy awaits a response from the 
+server, then reads the results of the request into an HTTP response. This data 
+is then processed to finally be sent to the client. 
+	We implemented a caching system in the proxy server to cache pages from 
+the servers. If another user requests the same page, the proxy will provide 
+this client with the cached page instead of querying the remote server again. 
+The cached page expires based on the expiration header in the HTTP response 
+from the remote servers. To implement this we decided to make a WebCache class
+with the actual cache implemented as a map.
+	To make this a multi-threaded proxy server, we decided to use pthreads 
+rather than forking processes because of thread communication and resource 
+sharing. Because the cache is shared between threads, we used pthreads for 
+their easier use of resource locks. This helped make the code a lot less 
+complicated.
+	Other helpful classes we implemented were a ReadWriteLock class for shared
+resources and a Buffer class to handle automatic resizing and adding of 
+character buffers. More useful classes were the UserConnectionPackage and 
+UserRequestPackage classes that made passing common connection information 
+between functions easier.

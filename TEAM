@@ -1,0 +1,12 @@
+Victor Kai 103782131
+Client - Proxy communication
+Proxy - Server communication
+HTTP request/response handling
+Buffer class
+
+Nevin Li 803799897
+WebCache class/integration
+pthread multithreading
+ReadWriteLock class
+UserConnectionPackage class
+UserRequestPackage class
