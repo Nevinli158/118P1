@@ -258,38 +258,32 @@ void* ProxyServer::handleUserRequest(void* args){
 }
 
 HttpRequest* ProxyServer::getHttpRequest(int conn_fd) {
-	// Full request buffer
-	Buffer *requestbuf = new Buffer();
-	// Temp recv buffer
-	Buffer *recvbuf = new Buffer();
-	int recvbytes = recv(conn_fd, recvbuf->buf, recvbuf->maxsize, 0);
+	char c;
+	Buffer *request	= new Buffer();
+	while(request->size < 4 || 
+			strstr(request->buf + request->size - 4, "\r\n\r\n") == NULL) {
+		if(recv(conn_fd, &c, 1, 0) != -1) {
+			request->add(c);
+		}
+		else {
+			std::cout << "recv error: headers" << std::endl;
+			break; // TODO: error if connection unexpectedly closes
+		}
+	}
 	
 	HttpRequest *http_request = new HttpRequest();
 	try {
-		http_request->ParseRequest(requestbuf->buf, requestbuf->maxsize);
-	} catch(ParseException e) {
-		std::cout << e.what() << std::endl;
-		// Construct HTTP request by appending recv lines
-		while (recvbytes != 0 && recvbytes != -1) {
-			requestbuf->add(recvbuf, recvbytes);
-			try {
-				http_request->ParseRequest(requestbuf->buf, requestbuf->size);
-				break;
-			} catch(ParseException e) {
-				std::cout << e.what() << std::endl;
-				printf("%s\n", requestbuf->buf);
-				recvbuf->clear();
-				recvbytes = recv(conn_fd, recvbuf->buf, recvbuf->maxsize, 0);
-				continue;
-			}
-			
-		}
-	}
-	if (recvbytes == -1) {
-		perror("recv");
-	}
-	else if (recvbytes == 0){
-		printf("connection closed\n");
+		http_request->ParseRequest(request->buf, request->size);
+	} catch (ParseException e) {
+		HttpResponse badrequest;
+		badrequest.SetVersion(http_request->GetVersion());
+		badrequest.SetStatusCode("400");
+		badrequest.SetStatusMsg("Bad request");
+		
+		char *buffer = (char *) calloc(badrequest.GetTotalLength(), 1);
+		badrequest.FormatResponse(buffer);
+		
+		send(conn_fd, buffer, badrequest.GetTotalLength(), 0);
 	}
 	
 	if(http_request->GetHost() == "") {
